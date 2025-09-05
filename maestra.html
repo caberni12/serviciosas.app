@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Maestra de Productos</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css-inv/estilos.css">
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script defer src="POS-NV/maestra.js"></script>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="badge">Admin</div>
+      <h1>Maestra de Productos</h1>
+    </div>
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="Buscar nombre, SKU, categoría...">
+      <select id="fEstado">
+        <option value="">Estado: Todos</option>
+        <option value="Activo">Activo</option>
+        <option value="Inactivo">Inactivo</option>
+      </select>
+      <button class="btn" id="reload"><span>Recargar</span></button>
+      <button class="btn" id="exportCsv"><span>CSV</span></button>
+      <button class="btn" id="exportXlsx"><span>XLSX</span></button>
+      <button class="btn" id="importBtn"><span>Importar</span></button>
+      <button class="btn primary" id="addBtn"><span>Nuevo</span></button>
+      <button class="btn ghost" id="cfgBtn"><span>Config API</span></button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="cards">
+      <div class="card"><h3>Productos</h3><div class="v" id="s_count">0</div></div>
+      <div class="card"><h3>Activos</h3><div class="v" id="s_activos">0</div></div>
+      <div class="card"><h3>Stock total</h3><div class="v" id="s_stock">0</div></div>
+      <div class="card"><h3>Última actualización</h3><div class="v" id="s_upd">—</div></div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th>Imagen</th>
+              <th>SKU</th>
+              <th>Nombre</th>
+              <th>Descripción</th>
+              <th>Categoría</th>
+              <th>Precio</th>
+              <th>Stock</th>
+              <th>Mínimo</th>
+              <th>Máximo</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Producto -->
+  <div id="prodModal" class="modal" aria-hidden="true">
+    <div class="box">
+      <header>
+        <h3 style="margin:0">Producto</h3>
+        <button class="btn ghost" data-close>✖</button>
+      </header>
+      <div class="content">
+        <div class="grid2">
+          <div><label>Nombre</label><input id="p_nombre"></div>
+          <div><label>SKU</label><input id="p_sku" placeholder="SKU-123"></div>
+          <div><label>Categoría</label><input id="p_categoria"></div>
+          <div><label>Precio</label><input id="p_precio" inputmode="decimal" placeholder="1500"></div>
+          <div><label>Stock</label><input id="p_stock" type="number" min="0" value="0"></div>
+          <div><label>Estado</label>
+            <select id="p_status"><option>Activo</option><option>Inactivo</option></select>
+          </div>
+        </div>
+        <div class="grid2" style="margin-top:10px">
+          <div><label>Mínimo</label><input id="p_min" type="number" min="0" value="0"></div>
+          <div><label>Máximo</label><input id="p_max" type="number" min="0" value="0"></div>
+        </div>
+        <div><label>Descripción</label><textarea id="p_desc" rows="3"></textarea></div>
+        <div><label>Imagen URL</label><input id="p_img" placeholder="https://... o link de Drive"></div>
+      </div>
+      <footer>
+        <button class="btn ghost" data-close><span>Cancelar</span></button>
+        <button class="btn primary" id="prodSave"><span>Guardar</span></button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal Importar -->
+  <div id="impModal" class="modal" aria-hidden="true">
+    <div class="box">
+      <header>
+        <h3 style="margin:0">Importar Maestra</h3>
+        <button class="btn ghost" data-close>✖</button>
+      </header>
+      <div class="content">
+        <div class="file-row">
+          <input id="fileIn" type="file" accept=".xlsx,.xls,.csv">
+          <label for="fileIn" class="file-btn">📁 Seleccionar archivo</label>
+          <span id="fileName" class="file-name">Ningún archivo seleccionado</span>
+        </div>
+
+        <div class="grid2" style="margin-top:8px">
+          <div>
+            <label>Modo</label>
+            <select id="impMode">
+              <option value="upsert">Actualizar / Agregar</option>
+              <option value="replace">Reemplazar todo</option>
+            </select>
+          </div>
+          <div>
+            <label>Hoja (XLSX)</label>
+            <input id="sheetName" placeholder="(opcional)">
+          </div>
+        </div>
+
+        <div class="imp-stats" id="impStats" style="display:none">
+          <span class="chip" id="st_read">Leídas: 0</span>
+          <span class="chip" id="st_uniq">Únicas tras unificar: 0</span>
+          <span class="chip" id="st_dups">Duplicados combinados: 0</span>
+          <span class="chip" id="st_stock">Stock total del archivo: 0</span>
+        </div>
+
+        <div class="hint">
+          Encabezados aceptados: <em>nombre, sku, descripcion, precio, imagen, categoria, stock, minimo, maximo, status</em> (variantes en español/inglés también).
+        </div>
+
+        <pre id="impPreview" style="white-space:pre-wrap"></pre>
+      </div>
+      <footer>
+        <button class="btn ghost" data-close><span>Cancelar</span></button>
+        <button class="btn primary" id="impRun"><span>Importar</span></button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal Config API -->
+  <div id="cfgModal" class="modal" aria-hidden="true">
+    <div class="box">
+      <header>
+        <h3 style="margin:0">Configurar API</h3>
+        <button class="btn ghost" data-close>✖</button>
+      </header>
+      <div class="content">
+        <label>API URL (Google Apps Script)</label>
+        <input type="url" id="cfg_api" placeholder="https://script.google.com/macros/s/XXXXX/exec">
+        <div class="hint">Se usa para Maestra de Productos</div>
+      </div>
+      <footer>
+        <button class="btn ghost" data-close><span>Cancelar</span></button>
+        <button class="btn primary" id="cfgSave"><span>Guardar</span></button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="toast-wrap" id="toasts"></div>
+</body>
+</html>

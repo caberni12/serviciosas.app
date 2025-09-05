@@ -1,0 +1,442 @@
+<!-- index.html -->
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Admin · POS</title>
+
+  <!-- Fonts & libs -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+
+  <link rel="stylesheet" href="css-inv/estilos.css">
+  <script defer src="POS-NV/app.js"></script>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="badge">Admin</div>
+      <h1>Productos</h1>
+    </div>
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="Buscar nombre, SKU, categoría...">
+      <select id="fEstado">
+        <option value="">Estado: Todos</option>
+        <option value="Activo">Activo</option>
+        <option value="Inactivo">Inactivo</option>
+      </select>
+      <button class="btn" id="reload"><span>Recargar</span></button>
+      <button class="btn" id="exportCsv"><span>CSV</span></button>
+      <button class="btn" id="exportXlsx"><span>XLSX</span></button>
+      <button class="btn" id="exportPdf"><span>PDF</span></button>
+      <button class="btn" id="importBtn"><span>Importar</span></button>
+      <button class="btn primary" id="addBtn"><span>Nuevo</span></button>
+      <button class="btn ghost" id="adjBtn"><span>Ajuste inventario</span></button>
+      <button class="btn ghost" id="bodBtn"><span>Bodegas</span></button>
+      <button class="btn ghost" id="guiaBtn"><span>Guía/Traspaso</span></button>
+      <button class="btn ghost" id="cfgBtn"><span>Configuración</span></button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="cards">
+      <div class="card"><h3>Productos (unificados)</h3><div class="v" id="s_activos">0</div></div>
+      <div class="card"><h3>Inactivos</h3><div class="v" id="s_inactivos">0</div></div>
+      <div class="card"><h3>Stock total</h3><div class="v" id="s_stock">0</div></div>
+      <div class="card"><h3>Última actualización</h3><div class="v" id="s_upd">—</div></div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table id="tbl">
+          <thead>
+  <tr>
+    <th>Imagen</th>
+    <th>SKU</th>
+    <th>Nombre</th>
+    <th>Descripción</th>
+    <th>Categoría</th>
+    <th>Bodega</th>
+    <th>Precio</th>
+    <th>Stock</th>
+    <th>Mínimo</th>
+    <th>Máximo</th>
+    <th>Estado</th>
+    <th>Acciones</th>
+  </tr>
+</thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Producto -->
+  <div id="prodModal" class="modal" aria-hidden="true">
+    <div class="box">
+      <header>
+        <h3 style="margin:0">Producto</h3>
+        <button class="btn ghost" data-close>✖</button>
+      </header>
+      <div class="content">
+        <div class="grid2">
+          <div><label>Nombre</label><input id="p_nombre"></div>
+          <div><label>SKU</label><input id="p_sku" placeholder="SKU-123"></div>
+          <div><label>Categoría</label><input id="p_categoria"></div>
+        <div><label>Bodega</label><select id="p_bodega"></select></div>
+          <div><label>Precio (texto, se muestra tal cual)</label><input id="p_precio_raw" placeholder="1.500 / 2,500.00"></div>
+          <div><label>Precio numérico (para cálculos)</label><input id="p_precio_num" placeholder="1500" inputmode="decimal"></div>
+          <div><label>Stock</label><input id="p_stock" type="number" min="0" value="0"></div>
+          <div><label>Estado</label>
+            <select id="p_status"><option>Activo</option><option>Inactivo</option></select>
+          </div>
+        </div>
+
+        <div style="border:1px dashed var(--border);border-radius:12px;padding:10px">
+          <label style="display:block;margin-bottom:6px">Códigos / Variantes</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+            <input id="v_code" placeholder="EAN / UPC / variantes" style="flex:1;min-width:220px">
+            <button class="btn" id="v_add"><span>Agregar</span></button>
+            <span class="hint">Enter para agregar · Se guardan en la descripción</span>
+          </div>
+          <div id="v_list"></div>
+        </div>
+
+        <div class="grid2" style="margin-top:10px">
+          <div><label>Mínimo</label><input id="p_min" type="number" min="0" value="0"></div>
+          <div><label>Máximo</label><input id="p_max" type="number" min="0" value="0"></div>
+        </div>
+        <div><label>Descripción</label><textarea id="p_desc" rows="3"></textarea></div>
+        <div><label>Imagen URL</label><input id="p_img" placeholder="https://... o link de Drive"></div>
+        <div class="hint">El <strong>SKU</strong> y los <strong>códigos</strong> se guardan ocultos en la descripción para compatibilidad.</div>
+      </div>
+      <footer>
+        <button class="btn ghost" data-close><span>Cancelar</span></button>
+        <button class="btn primary" id="prodSave"><span>Guardar</span></button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal Importar Productos -->
+  <div id="impModal" class="modal" aria-hidden="true">
+    <div class="box">
+      <header>
+        <h3 style="margin:0">Importar productos</h3>
+        <button class="btn ghost" data-close>✖</button>
+      </header>
+      <div class="content">
+        <div class="file-row">
+          <input id="fileIn" type="file" accept=".xlsx,.xls,.csv">
+          <label for="fileIn" class="file-btn">📁 Seleccionar archivo</label>
+          <span id="fileName" class="file-name">Ningún archivo seleccionado</span>
+        </div>
+
+        <div class="grid2" style="margin-top:8px">
+          <div>
+            <label>Modo</label>
+            <select id="impMode">
+              <option value="upsert">Actualizar / Sumar stock</option>
+              <option value="replace">Reemplazar todo</option>
+            </select>
+          </div>
+          <div>
+            <label>Hoja (XLSX)</label>
+            <input id="sheetName" placeholder="(opcional)">
+          </div>
+        </div>
+
+        <div class="imp-stats" id="impStats" style="display:none">
+          <span class="chip" id="st_read">Leídas: 0</span>
+          <span class="chip" id="st_uniq">Únicas tras unificar: 0</span>
+          <span class="chip" id="st_dups">Duplicados combinados: 0</span>
+          <span class="chip" id="st_stock">Stock total del archivo: 0</span>
+        </div>
+
+        <div class="hint">Columnas: <em>nombre, sku (opcional), descripcion, precio, precio_raw (opcional), categoria, stock, minimo, maximo, status, imagen</em>.
+          Se <strong>unifican por nombre</strong> y se <strong>suma el stock</strong>. Si hay varios SKU para el mismo nombre se conserva el primero no vacío.</div>
+
+        <div id="impPreview"></div>
+      </div>
+      <footer>
+        <button class="btn ghost" data-close><span>Cancelar</span></button>
+        <button class="btn primary" id="impRun"><span>Importar</span></button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal Ajuste Inventario -->
+  <div id="adjModal" class="modal" aria-hidden="true">
+    <div class="box">
+      <header>
+        <h3 style="margin:0">Ajuste de inventario</h3>
+        <button class="btn ghost" data-close>✖</button>
+      </header>
+      <div class="content">
+        <div class="grid3">
+          <div><label>Producto (nombre/SKU/código)</label><input id="aj_nombre" placeholder="Escribe nombre, SKU, EAN/UPC"></div>
+          <div><label>Dirección</label>
+            <select id="aj_dir"><option value="IN">Ingreso</option><option value="OUT">Egreso</option></select>
+          </div>
+          <div><label>Cantidad</label><input id="aj_qty" type="number" min="1" value="1"></div>
+          <div><label>Precio unit.</label><input id="aj_price" placeholder="(precarga)" inputmode="decimal"></div>
+          <div style="grid-column:1/-1"><label>Nota</label><input id="aj_nota" placeholder="Motivo / referencia"></div>
+        </div>
+        <div class="hint">Puedes ingresar nombre, SKU o un código (EAN/UPC). El precio se precarga al reconocer el producto.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn primary" id="ajApplyOne"><span>Aplicar (folio único)</span></button>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border)">
+
+        <div class="file-row">
+          <input id="adjFile" type="file" accept=".xlsx,.xls,.csv">
+          <label for="adjFile" class="file-btn">📥 Desde archivo (masivo)</label>
+          <span id="adjFileName" class="file-name">Ningún archivo seleccionado</span>
+        </div>
+        <div class="adj-stats" id="adjStats" style="display:none">
+          <span class="chip" id="adjRead">Leídas: 0</span>
+          <span class="chip" id="adjOk">Ajustes válidos: 0</span>
+          <span class="chip" id="adjUniq">Unificados: 0</span>
+          <span class="chip" id="adjComb">Combinados: 0</span>
+        </div>
+        <div class="hint">Columnas: <em>nombre</em> o <em>codigo/sku/ean/upc</em> y <em>cantidad/qty</em> (±) o <em>stock / nuevo_stock</em>. Opcional: <em>dir, precio</em>.</div>
+        <div id="adjPrev"></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+          <button class="btn primary" id="adjApplyFile"><span>Aplicar archivo (folio único)</span></button>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border)">
+
+        <!-- Reimprimir / Anular por folio -->
+        <div class="grid3">
+          <div><label>Folio de ajuste</label><input id="reimp_folio" placeholder="AJ-000123"></div>
+          <div style="grid-column:2/-1"><label>Motivo anulación</label><input id="anul_motivo" placeholder="(opcional)"></div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+          <button class="btn" id="reimpBtn"><span>Reimprimir PDF</span></button>
+          <button class="btn danger" id="anulBtn"><span>Anular ajuste</span></button>
+        </div>
+
+      </div>
+      <footer>
+        <button class="btn ghost" data-close><span>Cerrar</span></button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal Configuración -->
+  <div id="cfgModal" class="modal" aria-hidden="true">
+    <div class="box">
+      <header>
+        <h3 style="margin:0">Configuración</h3>
+        <button class="btn ghost" data-close>✖</button>
+      </header>
+      <div class="content">
+        <div class="grid2">
+          <div>
+            <label>API URL (Google Apps Script)</label>
+            <input type="url" id="cfg_api" placeholder="https://script.google.com/macros/s/XXXXX/exec">
+            <div class="hint">Se usa para todas las solicitudes (productos, bodegas, guías, ajustes).</div>
+          </div>
+        </div>
+        
+        <div class="grid2">
+          <div><label>Comercio</label><input id="cfg_comercio"></div>
+          <div><label>RUT</label><input id="cfg_rut"></div>
+          <div><label>Giro</label><input id="cfg_giro"></div>
+          <div><label>Ciudad</label><input id="cfg_ciudad"></div>
+          <div class="grid2" style="grid-column:1/-1">
+            <div><label>Dirección</label><input id="cfg_direccion"></div>
+            <div><label>Fono</label><input id="cfg_fono"></div>
+          </div>
+          <div style="grid-column:1/-1"><label>Logo URL</label><input id="cfg_logo_url" placeholder="https://..."></div>
+        </div>
+
+        <div class="grid3">
+          <div><label>Prefijo folio (Ventas)</label><input id="cfg_folio_prefijo" placeholder="B-"></div>
+          <div><label>Ancho folio (Ventas)</label><input id="cfg_folio_ancho" type="number" min="0" value="6"></div>
+          <div><label>Folio actual (Ventas)</label><input id="cfg_folio_actual" type="number" min="0" value="0"></div>
+        </div>
+
+        <div class="grid3">
+          <div><label>Prefijo folio (Movimientos)</label><input id="cfg_mov_prefijo" placeholder="M-"></div>
+          <div><label>Ancho folio (Movimientos)</label><input id="cfg_mov_ancho" type="number" min="0" value="6"></div>
+          <div><label>Folio actual (Movimientos)</label><input id="cfg_mov_folio_actual" type="number" min="0" value="0"></div>
+        </div>
+        <div class="grid3">
+          <div><label>Prefijo folio (Ajustes)</label><input id="cfg_aj_prefijo" placeholder="AJ-"></div>
+          <div><label>Ancho folio (Ajustes)</label><input id="cfg_aj_ancho" type="number" min="0" value="6"></div>
+          <div><label>Folio actual (Ajustes)</label><input id="cfg_aj_folio_actual" type="number" min="0" value="0"></div>
+        </div>
+
+        <div class="grid3">
+          <div>
+            <label>Formato recibo</label>
+            <select id="cfg_formato_recibo">
+              <option value="A4">A4</option>
+              <option value="TICKET80">Ticket 80 mm</option>
+              <option value="TICKET58">Ticket 58 mm</option>
+            </select>
+          </div>
+          <div><label>Ancho ticket (mm)</label><input id="cfg_ticket_ancho_mm" type="number" min="40" value="80"></div>
+          <div><label>Pie de página</label><input id="cfg_pie_pagina" placeholder="¡Gracias por su compra!"></div>
+        </div>
+        <div class="grid3">
+          <div>
+            <label>Modo emisión</label>
+            <select id="cfg_emit_mode"><option value="PDF">PDF</option><option value="PRINT">Imprimir</option></select>
+          </div>
+          <div><label>Copias (PRINT)</label><input id="cfg_print_copies" type="number" min="1" value="1"></div>
+          <div><label>Ticket margen sup (mm)</label><input id="cfg_ticket_margin_top_mm" type="number" min="0" value="2"></div>
+        </div>
+        <div class="grid3">
+          <div><label>Ticket margen inf (mm)</label><input id="cfg_ticket_margin_bottom_mm" type="number" min="0" value="2"></div>
+          <div><label>Web</label><input id="cfg_web" placeholder="https://..."></div>
+          <div><label>Correo</label><input id="cfg_correo" placeholder="ventas@..."></div>
+        </div>
+
+        <!-- Tipo de documento para Ajustes -->
+        <div class="grid3">
+          <div>
+            <label>Tipo doc. Ajustes</label>
+            <select id="cfg_aj_doc_tipo">
+              <option value="A4">A4</option>
+              <option value="TICKET80">Ticket 80 mm</option>
+              <option value="TICKET58">Ticket 58 mm</option>
+            </select>
+          </div>
+        </div>
+      
+        <div class="grid3">
+          <div><label>Prefijo folio (Guías)</label><input id="cfg_gd_prefijo" placeholder="GD-"></div>
+          <div><label>Ancho folio (Guías)</label><input id="cfg_gd_ancho" type="number" min="0" value="6"></div>
+          <div><label>Folio actual (Guías)</label><input id="cfg_gd_folio_actual" type="number" min="0" value="0"></div>
+        </div>
+        <div class="grid3">
+          <div><label>Prefijo folio (Traspasos)</label><input id="cfg_tr_prefijo" placeholder="TR-"></div>
+          <div><label>Ancho folio (Traspasos)</label><input id="cfg_tr_ancho" type="number" min="0" value="6"></div>
+          <div><label>Folio actual (Traspasos)</label><input id="cfg_tr_folio_actual" type="number" min="0" value="0"></div>
+        </div>
+      </div>
+      <footer>
+        <button class="btn danger" id="cfgSetFolio"><span>Fijar folio actual (Ventas)</span></button>
+        <div style="flex:1"></div>
+        <button class="btn ghost" data-close><span>Cancelar</span></button>
+        <button class="btn primary" id="cfgSave"><span>Guardar</span></button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal Bodegas (mantenedor) -->
+  <div id="bodModal" class="modal" aria-hidden="true">
+    <div class="box">
+      <header>
+        <h3 style="margin:0">Bodegas</h3>
+        <button class="btn ghost" data-close>✖</button>
+      </header>
+      <div class="content">
+        <div class="grid2">
+          <div><label>Nombre</label><input id="bod_nombre" placeholder="Principal / Secundaria"></div>
+          <div>
+            <label>Estado</label>
+            <select id="bod_estado"><option value="ACTIVA">Activa</option><option value="BLOQUEADA">Bloqueada</option></select>
+          </div>
+        </div>
+        <div class="grid2">
+          <div style="grid-column:1/-1"><label>Dirección / Nota</label><input id="bod_dir" placeholder="(opcional)"></div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn primary" id="bodSave"><span>Guardar / Agregar</span></button>
+          <button class="btn" id="bodReload"><span>Recargar</span></button>
+        </div>
+        <div class="table-wrap">
+          <div class="table-scroll">
+            <table id="tblBod">
+              <thead>
+                <tr>
+                  <th>Bodega</th>
+                  <th>Estado</th>
+                  <th>Direccion</th>
+                  <th>Acciones</th>
+                 
+                </tr>
+</thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <footer>
+        <button class="btn ghost" data-close><span>Cerrar</span></button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Modal Guía / Traspaso -->
+  <div id="guiaModal" class="modal" aria-hidden="true">
+    <div class="box">
+      <header>
+        <h3 style="margin:0">Guía de despacho / Traspaso</h3>
+        <button class="btn ghost" data-close>✖</button>
+      </header>
+      <div class="content">
+        <div class="grid3">
+          <div>
+            <label>Modo</label>
+            <select id="g_modo">
+              <option value="NONE">Guía sin efecto (no mueve kardex)</option>
+              <option value="OUT">Guía con efecto (sale de bodega)</option>
+              <option value="TR">Traspaso entre bodegas</option>
+            </select>
+          </div>
+          <div><label>Bodega origen</label><select id="g_bod_origen"></select></div>
+          <div id="g_bod_dest_wrap" style="display:none"><label>Bodega destino</label><select id="g_bod_dest"></select></div>
+        </div>
+        <div class="grid2">
+          <div><label>Cliente / Destinatario</label><input id="g_cliente" placeholder="(opcional)"></div>
+          <div><label>Destino / Dirección</label><input id="g_destino" placeholder="(opcional)"></div>
+        </div>
+        <div class="grid3">
+          <div><label>Producto (nombre/SKU/código)</label><input id="g_q" placeholder="Escribe y ENTER"></div>
+          <div><label>Cantidad</label><input id="g_qty" type="number" min="1" value="1"></div>
+          <div><label>Precio unit.</label><input id="g_price" inputmode="decimal" placeholder="(opcional)"></div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn" id="gAdd"><span>Agregar ítem</span></button>
+          <button class="btn" id="gClear"><span>Limpiar</span></button>
+        </div>
+        <div class="table-wrap">
+          <div class="table-scroll">
+            <table id="tblGuia">
+              <thead>
+  <tr>
+    <th>Producto</th>
+    <th>Unidad</th>
+    <th>Precio</th>
+    <th>Acciones</th>
+  </tr>
+</thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="grid2">
+          <div style="grid-column:1/-1"><label>Nota</label><input id="g_nota" placeholder="Motivo / referencia"></div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn primary" id="gEmit"><span>Emitir</span></button>
+        </div>
+      </div>
+      <footer>
+        <button class="btn ghost" data-close><span>Cerrar</span></button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="toast-wrap" id="toasts"></div>
+</body>
+</html>

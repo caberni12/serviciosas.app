@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ventas · POS</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    :root{ --c1:#0ea5e9; --ink:#0f172a; --muted:#64748b; --bg:#f8fafc; --panel:#ffffff; --border:#e2e8f0; --ok:#22c55e; --err:#ef4444; }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,sans-serif}
+    header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--border);padding:12px 16px;display:flex;gap:12px;align-items:center;justify-content:space-between}
+    .brand{display:flex;gap:10px;align-items:center}
+    .brand h1{margin:0;font-size:18px}
+    .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .toolbar input,.toolbar select{padding:10px;border:1px solid var(--border);border-radius:10px;background:#fff}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#fff;cursor:pointer;font-weight:600;position:relative}
+    .btn[disabled]{opacity:.6;cursor:not-allowed}
+    .btn.blue{background:linear-gradient(180deg,#0ea5e9,#0284c7);color:#fff;border:0}
+    .ld{width:16px;height:16px;border:2px solid currentColor;border-top-color:transparent;border-right-color:transparent;border-radius:50%;display:inline-block;animation:spin .8s linear infinite;margin-left:4px;flex:0 0 16px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    .wrap{max-width:1200px;margin:16px auto;padding:0 16px;display:grid;gap:12px}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:12px;box-shadow:0 4px 16px rgba(2,8,23,.06)}
+    .card h3{margin:0 0 6px 0;font-size:13px;color:var(--muted);font-weight:600}
+    .card .v{font-size:20px;font-weight:800}
+
+    .table-wrap{background:var(--panel);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+    .table-scroll{max-height:62vh;overflow:auto}
+    table{width:100%;min-width:1400px;border-collapse:separate;border-spacing:0}
+    thead th{position:sticky;top:0;background:#f1f5f9;border-bottom:1px solid var(--border);text-align:left;font-size:12px;padding:10px;white-space:nowrap}
+    tbody td{border-bottom:1px solid var(--border);padding:10px;font-size:14px;vertical-align:top}
+    tbody tr:hover{background:#f8fafc}
+    .badge{padding:2px 8px;border-radius:999px;background:#e2e8f0;color:#0f172a;font-size:12px}
+    .muted{color:var(--muted)}
+    .right{text-align:right}
+    .toast-wrap{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:50}
+    .toast{background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(2,8,23,.15);padding:10px 12px;font-weight:600}
+    .toast.ok{border-color:#bbf7d0;background:#f0fdf4;color:#14532d}
+    .toast.err{border-color:#fecaca;background:#fef2f2;color:#7f1d1d}
+
+    /* Modal */
+    .modal-back{position:fixed;inset:0;background:rgba(2,6,23,.55);display:none;align-items:center;justify-content:center;z-index:100}
+    .modal-back.show{display:flex}
+    .modal{width:100%;max-width:520px;background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 20px 50px rgba(2,8,23,.35);padding:16px}
+    .modal h2{margin:0 0 10px 0;font-size:18px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .row input{flex:1;min-width:300px;padding:10px;border:1px solid var(--border);border-radius:10px}
+    .modal .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+
+    @media (max-width:980px){ .toolbar{gap:6px} .stats{grid-template-columns:1fr 1fr} thead th:nth-child(9){display:none} }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="badge">Ventas</div>
+      <h1>Reporte de Ventas</h1>
+    </div>
+    <div class="toolbar">
+      <input type="date" id="from">
+      <input type="date" id="to">
+      <select id="pago">
+        <option value="">Pago: Todos</option>
+        <option>Efectivo</option>
+        <option>Transferencia</option>
+        <option>Tarjeta</option>
+      </select>
+      <input type="search" id="q" placeholder="Buscar en todo...">
+      <button class="btn" id="reload">Recargar</button>
+      <button class="btn" id="csv">CSV</button>
+      <button class="btn" id="xlsx">XLSX</button>
+      <button class="btn" id="pdf">PDF</button>
+      <button class="btn blue" id="btnCfg">Configuración</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="stats">
+      <div class="card"><h3>Total vendido</h3><div class="v" id="s_total">$0</div><div class="muted" id="s_count">0 ventas</div></div>
+      <div class="card"><h3>Descuento</h3><div class="v" id="s_desc">$0</div></div>
+      <div class="card"><h3>Ticket promedio</h3><div class="v" id="s_avg">$0</div></div>
+      <div class="card"><h3>Última actualización</h3><div class="v" id="s_upd">—</div></div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th>FechaHora</th>
+              <th>Folio</th>
+              <th>Cliente</th>
+              <th>Pago</th>
+              <th class="right">Subtotal</th>
+              <th class="right">Descuento</th>
+              <th class="right">Total</th>
+              <th>Productos</th>
+              <th>Usuario</th>
+              <th>ItemsJSON</th>
+              <th>DocType</th>
+              <th>OpType</th>
+              <th>RefFolio</th>
+              <th>Nota</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Config -->
+  <div class="modal-back" id="mb">
+    <div class="modal">
+      <h2>Configuración</h2>
+      <div class="row">
+        <label for="api">API URL</label>
+        <input id="api" type="url" placeholder="https://tu-webapp/exec">
+        <button class="btn" id="testApi">Probar</button>
+      </div>
+      <div class="actions">
+        <button class="btn" id="closeCfg">Cerrar</button>
+        <button class="btn blue" id="saveCfg">Guardar</button>
+      </div>
+      <div class="muted" id="cfgMsg" style="margin-top:6px"></div>
+    </div>
+  </div>
+
+  <div class="toast-wrap" id="toasts"></div>
+
+<script>
+const STORAGE_KEY = 'VENTAS_API_URL';
+let API_BASE = localStorage.getItem(STORAGE_KEY) || '';
+let RAW = [];
+let VIEW = [];
+
+const $  = s => document.querySelector(s);
+const CLP = n => '$' + Number(n||0).toLocaleString('es-CL');
+const toast = (m,t='ok')=>{const c=$('#toasts');const e=document.createElement('div');e.className=`toast ${t}`;e.textContent=m;c.appendChild(e);setTimeout(()=>e.remove(),2600);};
+function setLoading(btn,on){ if(!btn) return; btn.disabled=!!on; if(on){ if(!btn.querySelector('.ld')){ const sp=document.createElement('span'); sp.className='ld'; btn.appendChild(sp);} }else{ const sp=btn.querySelector('.ld'); if(sp) sp.remove(); } }
+
+function parseCLDate(s){
+  if(!s) return new Date(0);
+  const m = String(s).match(/(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
+  if(!m) return new Date(s);
+  return new Date(Number(m[1]), Number(m[2])-1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6]));
+}
+function escapeHtml(s){return String(s||'').replace(/[&<>\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+
+async function fetchVentas(){
+  if(!API_BASE){ toast('Configura la API URL en ⚙️','err'); openCfg(); return; }
+  try{
+    const url = API_BASE + (API_BASE.includes('?')?'&':'?') + 'ventas=1&_=' + Date.now();
+    const res = await fetch(url, {cache:'no-store'});
+    if(!res.ok){ toast('Error HTTP al cargar ventas','err'); return; }
+    const data = await res.json();
+    if (data && data.items){ RAW = data.items.slice(); }
+    else if (data && data.ok === false){ toast(data.error || 'Respuesta inválida','err'); return; }
+    RAW.sort((a,b)=> (parseCLDate(b.FechaHora) - parseCLDate(a.FechaHora)));
+    $('#s_upd').textContent = new Date().toLocaleString('es-CL');
+    render();
+  }catch(e){ console.error(e); toast('No se pudieron cargar ventas','err'); }
+}
+
+function applyFilters(){
+  const q = ($('#q').value||'').toLowerCase().trim();
+  const pago = $('#pago').value;
+  const from = $('#from').value ? new Date($('#from').value+'T00:00:00') : null;
+  const to   = $('#to').value   ? new Date($('#to').value+'T23:59:59') : null;
+
+  VIEW = RAW.filter(x=>{
+    const d = parseCLDate(x.FechaHora);
+    if(from && d < from) return false;
+    if(to && d > to) return false;
+    if(pago && String(x.Pago) !== pago) return false;
+    if(q){
+      const blob = [
+        x.FechaHora,x.Folio,x.Cliente,x.Pago,x.Subtotal,x.Descuento,x.Total,
+        x.Productos,x.Usuario,x.ItemsJSON,x.DocType,x.OpType,x.RefFolio,x.Nota
+      ].join(' ').toLowerCase();
+      if(!blob.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function render(){
+  applyFilters();
+
+  const total = VIEW.reduce((s,r)=> s + Number(r.Total||0), 0);
+  const desc  = VIEW.reduce((s,r)=> s + Number(r.Descuento||0), 0);
+  $('#s_total').textContent = CLP(total);
+  $('#s_desc').textContent  = CLP(desc);
+  $('#s_count').textContent = VIEW.length + ' ventas';
+  $('#s_avg').textContent   = CLP(VIEW.length ? Math.round(total/VIEW.length) : 0);
+
+  const tb = $('#tbl tbody'); tb.innerHTML='';
+  for(const r of VIEW){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(r.FechaHora||'')}</td>
+      <td>${escapeHtml(r.Folio||'')}</td>
+      <td>${escapeHtml(r.Cliente||'')}</td>
+      <td><span class="badge">${escapeHtml(r.Pago||'')}</span></td>
+      <td class="right">${CLP(r.Subtotal||0)}</td>
+      <td class="right">${CLP(r.Descuento||0)}</td>
+      <td class="right"><strong>${CLP(r.Total||0)}</strong></td>
+      <td class="muted">${escapeHtml(r.Productos||'')}</td>
+      <td>${escapeHtml(r.Usuario||'')}</td>
+      <td class="muted">${escapeHtml(r.ItemsJSON||'')}</td>
+      <td>${escapeHtml(r.DocType||'')}</td>
+      <td>${escapeHtml(r.OpType||'')}</td>
+      <td>${escapeHtml(r.RefFolio||'')}</td>
+      <td class="muted">${escapeHtml(r.Nota||'')}</td>`;
+    tb.appendChild(tr);
+  }
+}
+
+/* Exports (siempre desde VIEW filtrado) */
+function rowsForExport(){ return VIEW.map(r=>({
+  FechaHora:r.FechaHora||'', Folio:r.Folio||'', Cliente:r.Cliente||'', Pago:r.Pago||'',
+  Subtotal:Number(r.Subtotal||0), Descuento:Number(r.Descuento||0), Total:Number(r.Total||0),
+  Productos:r.Productos||'', Usuario:r.Usuario||'', ItemsJSON:r.ItemsJSON||'',
+  DocType:r.DocType||'', OpType:r.OpType||'', RefFolio:r.RefFolio||'', Nota:r.Nota||''
+}));}
+
+function exportCSV(){
+  const head = ['FechaHora','Folio','Cliente','Pago','Subtotal','Descuento','Total','Productos','Usuario','ItemsJSON','DocType','OpType','RefFolio','Nota'];
+  const rows = rowsForExport();
+  const lines = [head.join(';')];
+  rows.forEach(r=>{
+    const vals = head.map(k=> String(r[k]??'').replace(/"/g,'""'));
+    lines.push(vals.map(v=> /[;\n",]/.test(v) ? `"${v}"` : v).join(';'));
+  });
+  const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='ventas.csv'; a.click();
+}
+
+function exportXLSX(){
+  const head = ['FechaHora','Folio','Cliente','Pago','Subtotal','Descuento','Total','Productos','Usuario','ItemsJSON','DocType','OpType','RefFolio','Nota'];
+  const rows = rowsForExport();
+  const aoa = [head, ...rows.map(r=> head.map(k=> r[k]))];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:19},{wch:12},{wch:20},{wch:12},{wch:12},{wch:12},{wch:12},{wch:40},{wch:14},{wch:24},{wch:10},{wch:10},{wch:12},{wch:20}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
+  XLSX.writeFile(wb, 'ventas.xlsx');
+}
+
+function exportPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({orientation:'landscape', unit:'pt', format:'A4'});
+  const head = [['FechaHora','Folio','Cliente','Pago','Subtotal','Desc.','Total','Productos','Usuario','ItemsJSON','DocType','OpType','RefFolio','Nota']];
+  const rows = rowsForExport().map(r=>[
+    r.FechaHora,r.Folio,r.Cliente,r.Pago,
+    CLP(r.Subtotal),CLP(r.Descuento),CLP(r.Total),
+    r.Productos,r.Usuario,r.ItemsJSON,r.DocType,r.OpType,r.RefFolio,r.Nota
+  ]);
+  doc.setFont('helvetica','bold'); doc.setFontSize(14);
+  doc.text('Ventas (filtrado)', 40, 40);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10);
+  doc.autoTable({
+    head, body: rows, startY: 60, theme:'grid',
+    styles:{ fontSize:8, cellPadding:3, halign:'left', valign:'top' },
+    headStyles:{ fillColor:[15,23,42], textColor:255 },
+    columnStyles:{ 0:{cellWidth:90}, 2:{cellWidth:120}, 7:{cellWidth:160}, 9:{cellWidth:150}, 13:{cellWidth:140} },
+    margin:{ left:40, right:40 }
+  });
+  doc.save('ventas.pdf');
+}
+
+/* Modal config */
+function openCfg(){ $('#mb').classList.add('show'); $('#api').value = API_BASE || ''; $('#cfgMsg').textContent=''; }
+function closeCfg(){ $('#mb').classList.remove('show'); }
+$('#btnCfg').addEventListener('click', openCfg);
+$('#closeCfg').addEventListener('click', closeCfg);
+$('#saveCfg').addEventListener('click', ()=>{
+  const v = $('#api').value.trim();
+  if(!v){ $('#cfgMsg').textContent='Ingresa una URL válida'; return; }
+  API_BASE = v; localStorage.setItem(STORAGE_KEY, API_BASE);
+  $('#cfgMsg').textContent='Guardado ✔︎';
+  toast('API URL guardada','ok');
+});
+$('#testApi').addEventListener('click', async ()=>{
+  const v = $('#api').value.trim(); if(!v){ $('#cfgMsg').textContent='Ingresa una URL válida'; return; }
+  try{
+    const u = v + (v.includes('?')?'&':'?') + 'ping=1&_=' + Date.now();
+    const r = await fetch(u,{cache:'no-store'}); $('#cfgMsg').textContent = r.ok ? 'Conexión OK' : 'Error HTTP';
+  }catch{ $('#cfgMsg').textContent='Fallo de red/CORS'; }
+});
+
+/* Filtros vivos */
+$('#q').addEventListener('input', render);
+$('#pago').addEventListener('change', render);
+$('#from').addEventListener('change', render);
+$('#to').addEventListener('change', render);
+
+/* Botones */
+$('#reload').addEventListener('click', async (e)=>{ const b=e.currentTarget; setLoading(b,true); try{ await fetchVentas(); } finally{ setLoading(b,false); }});
+$('#csv').addEventListener('click', (e)=>{ const b=e.currentTarget; setLoading(b,true); try{ exportCSV(); } finally{ setTimeout(()=>setLoading(b,false), 200); }});
+$('#xlsx').addEventListener('click', (e)=>{ const b=e.currentTarget; setLoading(b,true); try{ exportXLSX(); } finally{ setTimeout(()=>setLoading(b,false), 200); }});
+$('#pdf').addEventListener('click',  (e)=>{ const b=e.currentTarget; setLoading(b,true); try{ exportPDF(); } finally{ setTimeout(()=>setLoading(b,false), 200); }});
+
+/* Inicio */
+(function init(){
+  if(!API_BASE){ openCfg(); }
+  fetchVentas();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Movimientos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#f8fafc; --card:#ffffff; --line:#e2e8f0; --text:#0f172a; --muted:#64748b;
+    --accent:#2563eb; --ok:#16a34a; --err:#dc2626; --warn:#f59e0b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+  .wrap{max-width:1240px;margin:24px auto;padding:0 16px}
+  h1{margin:0 0 12px 0;font-size:22px}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:.55rem .8rem;border-radius:.55rem;border:1px solid #0f172a;background:#0f172a;color:#fff;font-weight:600;cursor:pointer;user-select:none}
+  .btn.secondary{background:#fff;color:#0f172a;border-color:var(--line)}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+  .btn.loading{position:relative;color:transparent!important}
+  .btn.loading::after{content:"";position:absolute;width:1.05em;height:1.05em;border-radius:999px;border:2px solid #000;border-right-color:transparent;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .section{padding:12px}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin:10px 0 12px}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field label{font-size:12px;color:#334155}
+  input[type="date"], input[type="text"], textarea{
+    padding:.5rem .6rem;border:1px solid var(--line);border-radius:.5rem;background:#fff;min-height:38px;font-family:inherit
+  }
+  textarea{min-height:90px;width:100%}
+
+  /* Scroll horizontal tabla */
+  .table-wrap{position:relative; overflow-x:auto; overflow-y:hidden}
+  table{width:max-content; min-width:100%; border-collapse:collapse}
+  thead th{position:sticky;top:0;background:#f1f5f9;border-bottom:1px solid var(--line);padding:10px;font-size:12px;text-align:left;white-space:nowrap;z-index:1;cursor:pointer}
+  thead th.sortable{user-select:none}
+  thead th .arrow{margin-left:6px;font-size:11px;color:var(--muted)}
+  tbody td{border-bottom:1px solid var(--line);padding:10px;vertical-align:top;font-size:13px;white-space:nowrap}
+  td.right, th.right{text-align:right}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;background:#eef2ff;border:1px solid #c7d2fe;color:#3730a3;font-weight:700;font-size:12px}
+  .muted{color:var(--muted)}
+  .delta.neg{color:var(--err)} .delta.pos{color:var(--ok)}
+  .empty{padding:16px;text-align:center;color:var(--muted)}
+
+  .overlay{position:absolute;inset:0;background:rgba(255,255,255,.65);display:none;align-items:center;justify-content:center;z-index:2}
+  .overlay.show{display:flex}
+  .dot{width:14px;height:14px;border-radius:999px;border:2px solid #000;border-right-color:transparent;animation:spin .8s linear infinite}
+
+  #toasts{position:fixed;right:12px;top:12px;display:flex;flex-direction:column;gap:8px;z-index:3000}
+  #toasts .toast{padding:.5rem .75rem;border-radius:.5rem;font-weight:700;color:#fff}
+  #toasts .ok{background:var(--ok)} #toasts .err{background:var(--err)} #toasts .warn{background:var(--warn)}
+
+  /* Modal URL */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:4000}
+  .modal-backdrop.show{display:flex}
+  .modal{width:min(640px,calc(100vw - 32px));background:#fff;border-radius:12px;border:1px solid var(--line);box-shadow:0 10px 30px rgba(0,0,0,.15);overflow:hidden}
+  .modal header{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+  .modal h3{margin:0;font-size:16px}
+  .modal .content{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+  .modal .actions{padding:12px 16px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 style="display:flex;align-items:center;gap:10px;justify-content:space-between">
+    <span>Movimientos</span>
+    <button class="btn" id="btnCfgUrl" title="Configurar API_URL">Configurar API_URL</button>
+  </h1>
+
+  <div class="card section toolbar">
+    <div class="field">
+      <label>Desde</label>
+      <input type="date" id="fDesde">
+    </div>
+    <div class="field">
+      <label>Hasta</label>
+      <input type="date" id="fHasta">
+    </div>
+    <div class="field" style="flex:1;min-width:220px">
+      <label>Búsqueda (folio, producto, cliente…)</label>
+      <input type="text" id="q" placeholder="Escribe para filtrar…">
+    </div>
+    <button class="btn" id="btnApply">Aplicar</button>
+    <button class="btn secondary" id="btnClear">Limpiar</button>
+    <button class="btn secondary" id="btnCSV">CSV</button>
+    <button class="btn secondary" id="btnXLSX">XLSX</button>
+    <button class="btn secondary" id="btnPDF">PDF</button>
+    <button class="btn secondary" id="btnFromText">Desde texto</button>
+  </div>
+
+  <div class="card section" id="pasteBox" style="display:none">
+    <div class="field">
+      <label>Pegar datos (TSV/CSV). La primera fila debe ser encabezados. Ej.: FechaHora, Folio, Tipo, …</label>
+      <textarea id="txtData" placeholder="Pega aquí los datos..."></textarea>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" id="btnLoadText">Cargar al visor</button>
+      <button class="btn secondary" id="btnHideText">Ocultar</button>
+    </div>
+  </div>
+
+  <div class="card table-wrap" id="tableWrap">
+    <div class="overlay" id="overlay"><div class="dot"></div></div>
+    <table id="tbl">
+      <thead>
+        <tr>
+          <th data-k="FechaHora" class="sortable">FechaHora <span class="arrow"></span></th>
+          <th data-k="Folio" class="sortable">Folio <span class="arrow"></span></th>
+          <th data-k="Tipo" class="sortable">Tipo <span class="arrow"></span></th>
+          <th data-k="Producto" class="sortable">Producto <span class="arrow"></span></th>
+          <th data-k="Cantidad" class="right sortable">Cantidad <span class="arrow"></span></th>
+          <th data-k="PrecioUnit" class="right sortable">PrecioUnit <span class="arrow"></span></th>
+          <th data-k="TotalLinea" class="right sortable">TotalLinea <span class="arrow"></span></th>
+          <th data-k="DeltaStock" class="right sortable">DeltaStock <span class="arrow"></span></th>
+          <th data-k="Cliente" class="sortable">Cliente <span class="arrow"></span></th>
+          <th data-k="Pago" class="sortable">Pago <span class="arrow"></span></th>
+          <th data-k="Usuario" class="sortable">Usuario <span class="arrow"></span></th>
+          <th data-k="Nota" class="sortable">Nota <span class="arrow"></span></th>
+          <th data-k="Estado" class="sortable">Estado <span class="arrow"></span></th>
+          <th data-k="RefFolio" class="sortable">RefFolio <span class="arrow"></span></th>
+          <th data-k="Motivo" class="sortable">Motivo <span class="arrow"></span></th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        <tr><td colspan="15" class="empty">Sin datos…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal URL (no visible hasta abrir) -->
+<div class="modal-backdrop" id="urlModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="urlTitle">
+    <header>
+      <h3 id="urlTitle">Configurar API_URL</h3>
+      <button class="btn secondary" id="btnCloseModal" title="Cerrar">Cerrar</button>
+    </header>
+    <div class="content">
+      <div class="field">
+        <label>URL del WebApp (HTTPS)</label>
+        <input id="apiUrlInput" type="text" placeholder="https://script.google.com/macros/s/XXXX/exec">
+      </div>
+      <small class="muted">Se guarda localmente y no queda visible en pantalla.</small>
+    </div>
+    <div class="actions">
+      <button class="btn secondary" id="btnPingInModal">Probar</button>
+      <button class="btn" id="btnSaveApi">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<!-- Librerías export -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+
+<script>
+/* ===== Estado ===== */
+let MOVS = [];
+let SORT_KEY = 'FechaHora';
+let SORT_DIR = 'desc';
+
+/* ===== Utils ===== */
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+function toast(msg, type='ok'){ const c=$('#toasts'); const d=document.createElement('div'); d.className='toast '+type; d.textContent=msg; c.appendChild(d); setTimeout(()=>d.remove(),3200); }
+function setBtnLoading(btn, on, label='Procesando...'){ if(!btn) return; btn.disabled=!!on; btn.classList.toggle('loading',!!on); if(on){ btn.dataset._txt=btn.textContent; btn.textContent=label; } else if(btn.dataset._txt){ btn.textContent=btn.dataset._txt; delete btn.dataset._txt; } }
+function showOverlay(on){ $('#overlay').classList.toggle('show', !!on); }
+function CLP(n){ return '$' + Number(n||0).toLocaleString('es-CL'); }
+function escapeHtml(s){ const map={'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}; return String(s||'').replace(/[&<>"']/g, ch => map[ch]); }
+function debounce(fn, ms=80){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; }
+
+/* Fecha/hora -> YYYY-MM-DD HH:mm:ss */
+function fmtFechaHora(s){
+  if(!s) return '';
+  const raw = String(s).replace('T',' ').replace('Z','');
+  const parts = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if(parts){
+    const d = Number(parts[1]), m = Number(parts[2]), y = Number(parts[3]);
+    const hh = String(parts[4]??'0').padStart(2,'0');
+    const mm = String(parts[5]??'0').padStart(2,'0');
+    const ss = String(parts[6]??'0').padStart(2,'0');
+    return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')} ${hh}:${mm}:${ss}`;
+  }
+  try{
+    const d = new Date(raw);
+    if(isNaN(d)) return raw;
+    const y=d.getFullYear(), mo=String(d.getMonth()+1).padStart(2,'0'), da=String(d.getDate()).padStart(2,'0');
+    const hh=String(d.getHours()).padStart(2,'0'), mi=String(d.getMinutes()).padStart(2,'0'), se=String(d.getSeconds()).padStart(2,'0');
+    return `${y}-${mo}-${da} ${hh}:${mi}:${se}`;
+  }catch{ return raw; }
+}
+
+/* ===== API helpers ===== */
+function getAPI(){ return (localStorage.getItem('API_URL') || '').trim(); }
+function saveAPI(url){
+  const u = (url||'').trim();
+  localStorage.setItem('API_URL', u);
+  $('#apiUrlInput').value = u;
+}
+async function tryFetchList(api, desde, hasta, q){
+  const attempts = [
+    { method:'POST', body:{action:'listmov', desde, hasta, q} },
+    { method:'POST', body:{action:'movlist', desde, hasta, q} },
+    { method:'POST', body:{action:'movimientos', desde, hasta, q} },
+    { method:'GET',  query:{movimientos:1, desde, hasta, q} }
+  ];
+  for(const at of attempts){
+    try{
+      let res;
+      if(at.method==='POST'){
+        res = await fetch(api, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(at.body) });
+      }else{
+        const u = new URL(api);
+        Object.entries(at.query).forEach(([k,v])=>{ if(v) u.searchParams.set(k,v); });
+        u.searchParams.set('_', Date.now());
+        res = await fetch(u.toString(), {cache:'no-store'});
+      }
+      const txt = await res.text();
+      let json = null;
+      try{ json = JSON.parse(txt); }catch{}
+      const items = json?.items || json?.data;
+      if (Array.isArray(items)) return items;
+    }catch{}
+  }
+  return null;
+}
+async function pingAPI(){
+  const api = getAPI();
+  if(!api){ toast('Define API_URL primero','err'); return; }
+  try{
+    const r = await fetch(api, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({action:'ping'})});
+    if(!r.ok){
+      const u = new URL(api); u.searchParams.set('ping','1'); u.searchParams.set('_', Date.now());
+      const g = await fetch(u.toString(), {cache:'no-store'});
+      if(!g.ok) throw new Error('No conecta (CORS/URL)');
+    }
+    toast('Conexión OK','ok');
+  }catch(e){
+    console.error('Ping error:', e);
+    toast('No conecta. Revisa CORS/HTTPS/URL','err');
+  }
+}
+
+/* ===== Normalización ===== */
+function normalize(r){
+  const cantidad = Number(r.Cantidad ?? r.cantidad ?? r.qty ?? 0);
+  const precio   = Number(r.PrecioUnit ?? r.precioUnit ?? r.precio ?? r.punit ?? 0);
+  let delta = r.DeltaStock ?? r.deltaStock ?? r.delta;
+  if (delta==null){
+    const dir = String(r.dir||'').toUpperCase();
+    delta = (dir==='OUT') ? -cantidad : cantidad;
+  }
+  const fechaRaw = r.FechaHora ?? r.fechaHora ?? r.fecha_hora ?? r.fecha ?? r.Fecha ?? '';
+  return {
+    FechaHora: fmtFechaHora(fechaRaw),
+    Folio: String(r.Folio ?? r.folio ?? ''),
+    Tipo: String(r.Tipo ?? r.tipo ?? r.movimiento ?? ''),
+    Producto: String(r.Producto ?? r.producto ?? r.nombre ?? ''),
+    Cantidad: Number(cantidad||0),
+    PrecioUnit: Number(precio||0),
+    TotalLinea: Number((r.TotalLinea ?? r.totalLinea ?? r.total ?? (Number(cantidad||0) * Number(precio||0))) ?? 0),
+    DeltaStock: Number(delta||0),
+    Cliente: String(r.Cliente ?? r.cliente ?? ''),
+    Pago: String(r.Pago ?? r.pago ?? ''),
+    Usuario: String(r.Usuario ?? r.usuario ?? ''),
+    Nota: String(r.Nota ?? r.nota ?? ''),
+    Estado: String(r.Estado ?? r.estado ?? ''),
+    RefFolio: String(r.RefFolio ?? r.ReferenciaFolio ?? r.refFolio ?? r.ref ?? ''),
+    Motivo: String(r.Motivo ?? r.motivo ?? '')
+  };
+}
+
+/* ===== Carga desde API ===== */
+async function cargar(btn){
+  setBtnLoading(btn, true, 'Cargando...'); showOverlay(true);
+  try{
+    const api = getAPI();
+    if(!api){ toast('Configura API_URL (botón de configuración)','err'); return; }
+    const desde = $('#fDesde').value || '';
+    const hasta = $('#fHasta').value || '';
+    const q = $('#q').value || '';
+    const items = await tryFetchList(api, desde, hasta, q);
+    if(!items){
+      toast('No se pudo obtener datos (revisa URL/CORS/acciones del WebApp)','err');
+      console.warn('Backend debe soportar action:listmov o ?movimientos=1');
+      return;
+    }
+    MOVS = items.map(normalize);
+    render();
+    toast('Movimientos actualizados');
+  }catch(e){
+    console.error('Carga error:', e);
+    toast('Error de conexión. Revisa consola (CORS/HTTPS/URL)','err');
+  } finally{
+    setBtnLoading(btn,false); showOverlay(false);
+  }
+}
+
+/* ===== Carga desde texto pegado ===== */
+function detectDelimiter(line){
+  if (line.includes('\t')) return '\t';
+  if (line.includes(';')) return ';';
+  if (line.includes(',')) return ',';
+  return '\t';
+}
+function parseTextTable(txt){
+  const lines = txt.replace(/\r/g,'').split('\n').filter(l=>l.trim().length>0);
+  if(!lines.length) return [];
+  const delim = detectDelimiter(lines[0]);
+  let headers = lines[0].split(delim).map(h=>h.trim());
+  const seen = {};
+  headers = headers.map(h=>{ if(!seen[h]){ seen[h]=1; return h; } seen[h]++; return h + String(seen[h]); });
+
+  const rows = [];
+  for(let i=1;i<lines.length;i++){
+    const parts = lines[i].split(delim);
+    const row = {};
+    headers.forEach((h,ix)=> row[h] = parts[ix]!==undefined ? parts[ix] : '');
+    const r = {
+      FechaHora: row.FechaHora || row['Fecha Hora'] || row.Fecha || '',
+      Folio: row.Folio || '',
+      Tipo: row.Tipo || '',
+      Producto: row.Producto || '',
+      Cantidad: Number(row.Cantidad||0),
+      PrecioUnit: Number(row.PrecioUnit||row.Precio||0),
+      TotalLinea: Number(row.TotalLinea||row.Total||0),
+      DeltaStock: Number(row.DeltaStock||0),
+      Cliente: row.Cliente || '',
+      Pago: row.Pago || '',
+      Usuario: row.Usuario || '',
+      Nota: row.Nota || '',
+      Estado: row.Estado || '',
+      RefFolio: row.RefFolio || row.Referencia || '',
+      Motivo: row.Motivo || row.Motivo2 || ''
+    };
+    rows.push(normalize(r));
+  }
+  return rows;
+}
+
+/* ===== Filtro + orden (reutilizable para render/export) ===== */
+function getFilteredSorted(){
+  const q = ($('#q').value||'').toLowerCase().trim();
+  const filtered = MOVS.filter(r=>{
+    if(!q) return true;
+    const blob = [
+      r.FechaHora, r.Folio, r.Tipo, r.Producto, r.Cliente, r.Pago, r.Usuario, r.Nota, r.Estado, r.RefFolio, r.Motivo
+    ].join(' ').toLowerCase();
+    return blob.includes(q);
+  });
+  filtered.sort((a,b)=>{
+    const k = SORT_KEY;
+    const va = a[k], vb = b[k];
+    if (k==='Cantidad' || k==='PrecioUnit' || k==='TotalLinea' || k==='DeltaStock'){
+      const diff = Number(va||0) - Number(vb||0);
+      return SORT_DIR==='asc' ? diff : -diff;
+    }
+    if (k==='FechaHora'){
+      const da = new Date(a.FechaHora).getTime()||0;
+      const db = new Date(b.FechaHora).getTime()||0;
+      const diff = da - db;
+      return SORT_DIR==='asc' ? diff : -diff;
+    }
+    const sa = String(va||'').localeCompare(String(vb||''), 'es', {numeric:true, sensitivity:'base'});
+    return SORT_DIR==='asc' ? sa : -sa;
+  });
+  return filtered;
+}
+
+/* ===== Render ===== */
+function render(){
+  const tbody = $('#tbody'); tbody.innerHTML = '';
+  const data = getFilteredSorted();
+
+  if(!data.length){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="15" class="empty">Sin datos…</td>`;
+    tbody.appendChild(tr);
+    return;
+  }
+
+  for(const r of data){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(r.FechaHora)}</td>
+      <td>${escapeHtml(r.Folio)}</td>
+      <td><span class="badge">${escapeHtml(r.Tipo)}</span></td>
+      <td>${escapeHtml(r.Producto)}</td>
+      <td class="right">${Number(r.Cantidad||0)}</td>
+      <td class="right">${CLP(r.PrecioUnit||0)}</td>
+      <td class="right"><strong>${CLP(r.TotalLinea||0)}</strong></td>
+      <td class="right"><span class="delta ${Number(r.DeltaStock||0)<0?'neg':'pos'}">${Number(r.DeltaStock||0)}</span></td>
+      <td>${escapeHtml(r.Cliente||'')}</td>
+      <td>${escapeHtml(r.Pago||'')}</td>
+      <td>${escapeHtml(r.Usuario||'')}</td>
+      <td class="muted">${escapeHtml(r.Nota||'')}</td>
+      <td>${escapeHtml(r.Estado||'')}</td>
+      <td>${escapeHtml(r.RefFolio||'')}</td>
+      <td>${escapeHtml(r.Motivo||'')}</td>`;
+    tbody.appendChild(tr);
+  }
+
+  $$('#tbl thead th .arrow').forEach(el=>el.textContent='');
+  const th = $(`#tbl thead th[data-k="${SORT_KEY}"] .arrow`);
+  if (th) th.textContent = SORT_DIR==='asc' ? '▲' : '▼';
+}
+
+/* ===== Orden por cabecera ===== */
+$$('#tbl thead th.sortable').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const key = th.getAttribute('data-k');
+    if (SORT_KEY === key){ SORT_DIR = (SORT_DIR==='asc'?'desc':'asc'); }
+    else { SORT_KEY = key; SORT_DIR = 'asc'; }
+    render();
+  });
+});
+
+/* ===== Export helpers (usan el filtro actual) ===== */
+function toRowsFrom(arr){
+  const headers = ['FechaHora','Folio','Tipo','Producto','Cantidad','PrecioUnit','TotalLinea','DeltaStock','Cliente','Pago','Usuario','Nota','Estado','RefFolio','Motivo'];
+  const rows = [headers.slice()];
+  for(const r of arr){
+    rows.push([
+      r.FechaHora, r.Folio, r.Tipo, r.Producto,
+      Number(r.Cantidad||0),
+      Number(r.PrecioUnit||0),
+      Number(r.TotalLinea||0),
+      Number(r.DeltaStock||0),
+      r.Cliente, r.Pago, r.Usuario, r.Nota, r.Estado, r.RefFolio, r.Motivo
+    ]);
+  }
+  return rows;
+}
+function exportCSV(){
+  const data = getFilteredSorted();
+  if(!data.length){ toast('No hay filas para exportar','warn'); return; }
+  const rows = toRowsFrom(data);
+  const csv = rows.map(row=>row.map(v=>{
+    const s = String(v??'');
+    return /[",;\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  }).join(';')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'movimientos.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+function exportXLSX(){
+  const data = getFilteredSorted();
+  if(!data.length){ toast('No hay filas para exportar','warn'); return; }
+  const rows = toRowsFrom(data);
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [
+    {wch:19},{wch:12},{wch:14},{wch:28},{wch:10},{wch:12},{wch:12},{wch:11},{wch:24},{wch:12},{wch:12},{wch:24},{wch:12},{wch:14},{wch:18}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Movimientos');
+  XLSX.writeFile(wb, 'movimientos.xlsx');
+}
+function exportPDF(){
+  const data = getFilteredSorted();
+  if(!data.length){ toast('No hay filas para exportar','warn'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({orientation:'landscape', unit:'pt', format:'A4'});
+  doc.setFont('helvetica','bold'); doc.setFontSize(14);
+  doc.text('Movimientos', 40, 32);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10);
+  const q = ($('#q').value||'').trim();
+  doc.text(`Filtro: "${q}"  ·  ${new Date().toLocaleString()}`, 40, 50);
+
+  const head = [['FechaHora','Folio','Tipo','Producto','Cantidad','PrecioUnit','TotalLinea','DeltaStock','Cliente','Pago','Usuario','Nota','Estado','RefFolio','Motivo']];
+  const body = data.map(r=>[
+    r.FechaHora, r.Folio, r.Tipo, r.Producto,
+    Number(r.Cantidad||0),
+    Number(r.PrecioUnit||0),
+    Number(r.TotalLinea||0),
+    Number(r.DeltaStock||0),
+    r.Cliente, r.Pago, r.Usuario, r.Nota, r.Estado, r.RefFolio, r.Motivo
+  ]);
+  doc.autoTable({
+    head, body, startY:62, theme:'grid',
+    styles:{ fontSize:8, cellPadding:3 },
+    headStyles:{ fillColor:[241,245,249], textColor:20 },
+    margin:{ left:40, right:40 }
+  });
+  doc.save('movimientos.pdf');
+}
+
+/* ===== Botonera ===== */
+$('#btnCfgUrl').addEventListener('click', openUrlModal);
+$('#btnSaveApi').addEventListener('click', ()=>{
+  const url = $('#apiUrlInput').value.trim();
+  if(!url){ toast('Ingresa una URL','err'); return; }
+  saveAPI(url);
+  toast('API_URL guardada');
+  closeUrlModal();
+});
+$('#btnPingInModal').addEventListener('click', ()=>pingAPI());
+$('#btnApply').addEventListener('click', ()=>cargar($('#btnApply')));
+$('#btnClear').addEventListener('click', ()=>{ $('#fDesde').value=''; $('#fHasta').value=''; $('#q').value=''; render(); });
+$('#btnCSV').addEventListener('click', exportCSV);
+$('#btnXLSX').addEventListener('click', exportXLSX);
+$('#btnPDF').addEventListener('click', exportPDF);
+
+$('#btnFromText').addEventListener('click', ()=>{ $('#pasteBox').style.display='block'; });
+$('#btnHideText').addEventListener('click', ()=>{ $('#pasteBox').style.display='none'; });
+$('#btnLoadText').addEventListener('click', ()=>{
+  const txt = $('#txtData').value;
+  if(!txt.trim()){ toast('Pega datos primero','err'); return; }
+  try{
+    MOVS = parseTextTable(txt);
+    render();
+    toast('Datos cargados desde texto');
+  }catch(e){
+    console.error(e);
+    toast('No se pudo procesar el texto','err');
+  }
+});
+
+/* ===== Modal helpers ===== */
+function openUrlModal(){
+  $('#apiUrlInput').value = getAPI();
+  $('#urlModal').classList.add('show');
+  setTimeout(()=>$('#apiUrlInput').focus(), 50);
+}
+function closeUrlModal(){ $('#urlModal').classList.remove('show'); }
+$('#btnCloseModal').addEventListener('click', closeUrlModal);
+$('#urlModal').addEventListener('click', (e)=>{ if(e.target.id==='urlModal') closeUrlModal(); });
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeUrlModal(); });
+
+/* ===== Init ===== */
+(function initRange(){
+  const h = new Date(); const d = new Date(Date.now() - 6*24*60*60*1000);
+  const fmt = d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  $('#fDesde').value = fmt(d); $('#fHasta').value = fmt(h);
+})();
+(function initApi(){
+  const stored = getAPI();
+  if(!stored){ openUrlModal(); }
+})();
+
+/* Filtrado dinámico mientras escribe */
+const renderDebounced = debounce(render, 80);
+document.getElementById('q').addEventListener('input', renderDebounced);
+
+/* Scroll con rueda para mover horizontal */
+document.getElementById('tableWrap')?.addEventListener('wheel', (e) => {
+  if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) e.currentTarget.scrollLeft += e.deltaY;
+}, { passive: true });
+</script>
+</body>
+</html>

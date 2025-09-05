@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Sistema de Gestion</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* === Paleta por tema usando variables === */
+    :root{
+      --radius:16px;
+      --brand:#38bdf8; --brand-2:#0ea5e9; --ok:#22c55e; --err:#ef4444;
+    }
+    :root[data-theme="dark"]{
+      --bg:#0b1220; --bg-grad-2:#0a0f1a;
+      --panel:#0f172a; --panel-2:#111827;
+      --ink:#e5e7eb; --muted:#94a3b8;
+      --line:#1f2937;
+      --border-strong:#0b1a2b; --border-soft:#0d2034;
+      --btn-grad-1:#0c1627; --btn-grad-2:#0b1220;
+      --btn-ghost:#1f2937;
+      --shadow:0 10px 50px rgba(2,8,23,.45);
+      --glass: rgba(15,23,42,.75);
+      --glass-side: rgba(17,24,39,.75);
+      --ink-strong:#e2e8f0;
+    }
+    :root[data-theme="light"]{
+      --bg:#eef2f7; --bg-grad-2:#ffffff;
+      --panel:#ffffff; --panel-2:#f8fafc;
+      --ink:#0f172a; --muted:#475569;
+      --line:#e5e7eb;
+      --border-strong:#dbe4ee; --border-soft:#e2e8f0;
+      --btn-grad-1:#ffffff; --btn-grad-2:#f5f7fb;
+      --btn-ghost:#e5e7eb;
+      --shadow:0 12px 40px rgba(15,23,42,.10);
+      --glass: rgba(255,255,255,.75);
+      --glass-side: rgba(255,255,255,.9);
+      --ink-strong:#0b1220;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,var(--bg),var(--bg) 40%,var(--bg-grad-2) 100%);color:var(--ink);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    a{color:inherit;text-decoration:none}
+    .app{display:grid;grid-template-columns:260px 1fr; min-height:100%;}
+    @media (max-width:960px){ .app{grid-template-columns:1fr} .sidebar{position:sticky;top:0} }
+
+    /* Sidebar */
+    .sidebar{background:var(--glass-side);backdrop-filter: blur(10px);border-right:1px solid var(--border-strong);padding:14px;display:flex;flex-direction:column;gap:12px}
+    .brand{display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:12px;background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--border-strong)}
+    .brand .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--brand),#60a5fa);display:grid;place-items:center;font-weight:800;color:#0b1220}
+    .brand .title{display:flex;flex-direction:column;line-height:1}
+    .brand .title small{color:var(--muted)}
+    nav{display:flex;flex-direction:column;gap:6px}
+    .link{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid transparent;color:#cbd5e1;cursor:pointer}
+    :root[data-theme="light"] .link{color:#334155}
+    .link:hover{background:var(--panel-2);border-color:var(--border-soft)}
+    .link.active{background:linear-gradient(180deg,var(--panel-2),var(--panel));border-color:#11324f;color:var(--ink-strong);box-shadow:inset 0 0 0 1px rgba(14,165,233,.18)}
+    .link span{flex:1}
+    .pill{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--panel-2);border:1px solid #153552;color:#7dd3fc}
+    :root[data-theme="light"] .pill{border-color:#bae6fd;color:#0369a1}
+
+    /* Header */
+    header.top{position:sticky;top:0;z-index:5;background:var(--glass);backdrop-filter: blur(10px);border-bottom:1px solid var(--border-strong);padding:10px 14px;display:flex;align-items:center;gap:10px;justify-content:space-between}
+    .top .left{display:flex;align-items:center;gap:10px}
+    .top .right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:9px 12px;border-radius:12px;border:1px solid #12314c;background:linear-gradient(180deg,var(--btn-grad-1),var(--btn-grad-2));color:var(--ink-strong);cursor:pointer;font-weight:600;box-shadow: var(--shadow)}
+    .btn:hover{filter:brightness(1.05)}
+    .btn.primary{background:linear-gradient(180deg,var(--brand-2),#0284c7);border-color:var(--brand-2);color:#001018}
+    .btn.ghost{background:transparent;border-color:var(--btn-ghost)}
+    .select,.toggle{padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink)}
+    .sep{width:1px;height:28px;background:var(--line);margin:0 6px}
+
+    /* Frame */
+    .frame-wrap{padding:14px}
+    .frame{width:100%; height: calc(100vh - 72px); border:1px solid var(--border-strong); border-radius:var(--radius); background:var(--panel); box-shadow:var(--shadow), inset 0 0 0 1px rgba(56,189,248,.04)}
+    .status{font-size:12px;color:var(--muted)}
+
+    /* Footer small */
+    footer{padding:10px 14px;color:var(--muted);font-size:12px}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">Π</div>
+        <div class="title"><strong>Menu</strong><small>Panel principal</small></div>
+      </div>
+      <nav id="nav"></nav>
+      <div style="margin-top:auto">
+        <div class="status" id="status">Listo</div>
+      </div>
+    </aside>
+
+    <section>
+      <header class="top">
+        <div class="left">
+          <strong id="pageTitle">Punto de Venta</strong>
+          <span class="pill" id="pillKey">pos</span>
+        </div>
+        <div class="right">
+          <select id="theme" class="select" title="Tema">
+            <option value="auto">Tema: Sistema</option>
+            <option value="dark">Tema: Oscuro</option>
+            <option value="light">Tema: Claro</option>
+          </select>
+          <div class="sep"></div>
+          <select id="mode" class="select" title="Modo apertura">
+            <option value="same">Abrir en marco</option>
+            <option value="tab">Abrir en pestaña</option>
+          </select>
+          <button id="reloadBtn" class="btn"><span>Recargar</span></button>
+          <button id="openBtn" class="btn ghost"><span>Abrir pestaña</span></button>
+          <label class="toggle"><input id="autoRel" type="checkbox" style="accent-color:#0ea5e9"> Auto recargar al volver</label>
+        </div>
+      </header>
+
+      <div class="frame-wrap">
+        <iframe id="frame" class="frame" title="Contenido" src="pos.html" loading="lazy" referrerpolicy="no-referrer"></iframe>
+      </div>
+
+      <footer>© Suite POS</footer>
+    </section>
+  </div>
+
+<script>
+const PAGES = [
+  { key:'pos',        title:'Punto de Venta',          src:'pos.html',          icon:'🛒' },
+  { key:'nv',         title:'Preparación NV',          src:'nv-picking.html',   icon:'📦' },
+  { key:'maestra',    title:'Maestra de Productos',    src:'maestra.html',      icon:'📚' },
+  { key:'clientes',   title:'Clientes',                src:'clientes.html',     icon:'👤' },
+  { key:'ventas',     title:'Ventas',                  src:'ventas.html',       icon:'📈' },
+  { key:'movs',       title:'Movimientos',             src:'movimientos.html',  icon:'📊' },
+  { key:'admin',      title:'Admin Inventario',        src:'admin.html',        icon:'🗂️' },
+];
+const $ = s => document.querySelector(s);
+const nav = $('#nav');
+const frame = $('#frame');
+const pageTitle = $('#pageTitle');
+const pillKey = $('#pillKey');
+const status = $('#status');
+const modeSel = $('#mode');
+const reloadBtn = $('#reloadBtn');
+const openBtn = $('#openBtn');
+const autoRel = $('#autoRel');
+const themeSel = $('#theme');
+
+function buildNav(){
+  nav.innerHTML = '';
+  PAGES.forEach(p=>{
+    const a = document.createElement('a');
+    a.className = 'link';
+    a.dataset.key = p.key;
+    a.href = '#'+p.key;
+    a.innerHTML = `<span style="font-size:18px">${p.icon}</span><span>${p.title}</span>`;
+    nav.appendChild(a);
+  });
+}
+function setActive(key){
+  [...nav.children].forEach(n=> n.classList.toggle('active', n.dataset.key===key));
+}
+function openPage(key, forceReload=false){
+  const p = PAGES.find(x=>x.key===key) || PAGES[0];
+  const useTab = (modeSel.value==='tab');
+  pageTitle.textContent = p.title;
+  pillKey.textContent = p.key;
+  setActive(p.key);
+  localStorage.setItem('MAIN_LAST', p.key);
+  if (useTab){
+    window.open(p.src, '_blank');
+    status.textContent = 'Abierto en pestaña nueva';
+  } else {
+    const bust = forceReload ? (p.src + (p.src.includes('?')?'&':'?') + '_=' + Date.now()) : p.src;
+    frame.src = bust;
+    status.textContent = 'Cargando…';
+  }
+}
+function handleHash(){
+  const key = location.hash.replace('#','').trim() || (localStorage.getItem('MAIN_LAST')||'pos');
+  openPage(key);
+}
+function reloadFrame(){
+  try{
+    const url = new URL(frame.src, location.href);
+    url.searchParams.set('_', Date.now());
+    frame.src = url.toString();
+    status.textContent = 'Recargando…';
+  }catch{
+    frame.src = frame.src;
+  }
+}
+function onVisible(){
+  if (autoRel.checked) reloadFrame();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) onVisible(); });
+
+// === Tema ===
+const mql = window.matchMedia('(prefers-color-scheme: dark)');
+function resolveAuto(){ return mql.matches ? 'dark' : 'light'; }
+function applyTheme(mode){
+  let t = mode;
+  if (mode === 'auto') t = resolveAuto();
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('THEME_MODE', mode);
+}
+mql.addEventListener?.('change', () => {
+  if ((localStorage.getItem('THEME_MODE')||'auto') === 'auto'){
+    applyTheme('auto');
+  }
+});
+function initTheme(){
+  const saved = localStorage.getItem('THEME_MODE') || 'auto';
+  themeSel.value = saved;
+  applyTheme(saved);
+}
+
+// Events
+window.addEventListener('hashchange', handleHash);
+reloadBtn.addEventListener('click', ()=> reloadFrame());
+openBtn.addEventListener('click', ()=> {
+  const key = (location.hash.replace('#','')||'pos');
+  const p = PAGES.find(x=>x.key===key) || PAGES[0];
+  window.open(p.src, '_blank');
+});
+themeSel.addEventListener('change', e => applyTheme(e.target.value));
+
+// Keyboard: Ctrl/Cmd+R recarga solo el iframe
+window.addEventListener('keydown', e => {
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && e.key.toLowerCase()==='r'){
+    e.preventDefault();
+    reloadFrame();
+  }
+});
+
+// Init
+buildNav();
+initTheme();
+handleHash();
+frame.addEventListener('load', ()=> status.textContent = 'Listo');
+</script>
+</body>
+</html>

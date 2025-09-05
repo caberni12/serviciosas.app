@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Punto de Venta (POS)</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="POS-NV/estilos.css">
+
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.3/dist/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <img id="brandLogo" alt="">
+      <div>
+        <h1 id="storeTitle">Punto de Venta</h1>
+        <div id="storeSub" class="badge" style="display:none"></div>
+      </div>
+    </div>
+    <div class="search"><input id="q" placeholder="Buscar productos... (nombre, descripción, categoría)"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <label class="mini-label">Bodega:</label>
+      <select id="bodegaSelect" class="select"></select>
+      <span id="bodSpin" class="badge" style="display:none">Cargando…</span>
+      <span id="folioInfo" class="badge">Folio: —</span>
+      <span id="syncInfo" class="badge">Listo</span>
+      <button id="btnConfig" class="btn btn-ghost" title="Configuración">⚙️ Config</button>
+    </div>
+    <a class="btn btn-info" href="nv-picking.html">📦 Preparación</a>
+  </header>
+
+  <main>
+    <div class="grid" id="productGrid"></div>
+  </main>
+
+  <aside>
+    <div class="cart-head">
+      <h3 style="margin:0">Carrito</h3>
+      <button class="btn outline" id="btnClear">Vaciar</button>
+    </div>
+
+    <div id="cartItems" class="cart-items"></div>
+
+    <div class="controls">
+      <div class="grid2">
+        <select id="docType" class="select">
+          <option value="BOLETA">Boleta</option>
+          <option value="FA">Factura Afecta</option>
+          <option value="FX">Factura Exenta</option>
+          <option value="NC">Nota de Crédito</option>
+          <option value="ND">Nota de Débito</option>
+          <option value="NV">Nota de Venta</option>
+        </select>
+        <select id="opType" class="select" title="Acción">
+          <option value="VENTA">Venta</option>
+          <option value="DEVOLUCION">Devolución</option>
+          <option value="ANULACION">Anulación</option>
+        </select>
+      </div>
+      <input id="refFolio" class="input" placeholder="Folio de referencia (NC/ND/Anulación)">
+      <input id="customerName" class="input" placeholder="Cliente (opcional)">
+      <select id="payment" class="select">
+        <option value="Efectivo">Efectivo</option>
+        <option value="Transferencia">Transferencia</option>
+        <option value="Tarjeta">Tarjeta</option>
+      </select>
+
+      <!-- IVA -->
+      <div class="form-row">
+        <div class="field">
+          <label>Afecta IVA</label>
+          <select id="ivaAfecta" class="select">
+            <option value="SI">Sí</option>
+            <option value="NO">No</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>% IVA</label>
+          <input id="ivaPct" class="input" type="number" min="0" value="19" />
+        </div>
+      </div>
+
+      <input id="discount" class="input" type="number" min="0" value="0" placeholder="Descuento ($ CLP)">
+      <input id="cash" class="input" type="number" min="0" value="0" placeholder="Paga con ($ CLP)">
+      <textarea id="notes" class="input" rows="2" placeholder="Observaciones (opcional)"></textarea>
+
+      <label class="mini-label">Formato recibo</label>
+      <select id="receiptFmt" class="select">
+        <option value="A4">A4</option>
+        <option value="TICKET80">Ticket 80 mm</option>
+        <option value="TICKET58">Ticket 58 mm</option>
+      </select>
+    </div>
+
+    <div class="totals">
+      <div><span>Subtotal</span><strong id="subTotal">$0</strong></div>
+      <div><span>Descuento</span><strong id="subDiscount">$0</strong></div>
+      <div id="ivaRow"><span>IVA <span id="ivaLabel">(19%)</span></span><strong id="ivaAmt">$0</strong></div>
+      <div><span>Crédito aplicado</span><strong id="appliedCredit">$0</strong></div>
+      <div><span>Total</span><strong id="grandTotal">$0</strong></div>
+      <div><span>Cambio</span><strong id="changeAmt">$0</strong></div>
+    </div>
+
+    <div class="pay">
+      <button class="btn btn-primary" id="btnPay">Emitir</button>
+
+      <!-- Reimpresión / Cargar -->
+      <div class="reprint-area">
+        <div class="reprint-grid">
+          <input id="reprintFolio" class="input" placeholder="Folio (NV-, B-, FA-, FX-, NC-, ND-)">
+          <select id="reprintDoc" class="select">
+            <option value="NV">Nota de Venta</option>
+            <option value="BOLETA">Boleta</option>
+            <option value="FA">Factura Afecta</option>
+            <option value="FX">Factura Exenta</option>
+            <option value="NC">Nota de Crédito</option>
+            <option value="ND">Nota de Débito</option>
+          </select>
+        </div>
+        <div class="reprint-actions">
+          <button class="btn btn-info" id="btnLoadDoc">Cargar doc.</button>
+          <button class="btn outline" id="btnReprint">Reimprimir</button>
+        </div>
+        <button class="btn btn-danger" id="btnVoid">Anular (NC)</button>
+      </div>
+
+      <!-- Créditos (NC) múltiples -->
+      <div class="credits">
+        <h4>Notas de crédito disponibles</h4>
+        <div class="search-fields">
+          <div class="input-icon">
+            <span>👤</span><input id="creditClient" placeholder="Buscar por cliente">
+          </div>
+          <div class="input-icon">
+            <span>#</span><input id="creditFolio" placeholder="Buscar por folio de NC">
+          </div>
+        </div>
+        <div class="reprint-actions" style="margin-top:4px">
+          <button class="btn btn-info" id="btnFindCredits">Buscar créditos</button>
+          <button class="btn outline" id="btnClearCredits">Limpiar</button>
+        </div>
+        <div id="creditList"></div>
+        <div class="credit-foot">
+          <span class="pill">Selecciona varias NC para aplicar</span>
+          <strong id="creditSum" class="pill">$0</strong>
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- Modal Configuración -->
+<div id="cfgModal" class="modal" aria-hidden="true">
+  <div class="box">
+    <header>
+      <h3 style="margin:0;font-size:16px">Configuración del POS</h3>
+      <button class="btn btn-ghost" data-close>✖</button>
+    </header>
+    <div class="content">
+      <div class="grid2">
+        <div><label>Comercio</label><input id="cfg_comercio" class="input"></div>
+        <div><label>RUT</label><input id="cfg_rut" class="input"></div>
+        <div><label>Giro</label><input id="cfg_giro" class="input"></div>
+        <div><label>Ciudad</label><input id="cfg_ciudad" class="input"></div>
+        <div class="grid2" style="grid-column:1/-1;gap:12px">
+          <div><label>Dirección</label><input id="cfg_direccion" class="input"></div>
+          <div><label>Fono</label><input id="cfg_fono" class="input"></div>
+        </div>
+        <div style="grid-column:1/-1"><label>Logo URL</label><input id="cfg_logo_url" class="input" placeholder="https://..."></div>
+        <div style="grid-column:1/-1"><label>URL WebApp (Apps Script)</label><input id="cfg_api_url" class="input" placeholder="https://script.google.com/macros/s/.../exec"></div>
+      </div>
+
+      <div class="grid3">
+        <div><label>Prefijo Boleta</label><input id="cfg_folio_prefijo" class="input" placeholder="B-"></div>
+        <div><label>Ancho folio</label><input id="cfg_folio_ancho" class="input" type="number" min="0" value="6"></div>
+        <div><label>Folio Boleta actual</label><input id="cfg_folio_actual" class="input" type="number" min="0" value="0"></div>
+      </div>
+      <div class="grid3">
+        <div><label>Prefijo FA</label><input id="cfg_fa_prefijo" class="input" placeholder="FA-"></div>
+        <div><label>Folio FA actual</label><input id="cfg_fa_actual" class="input" type="number" min="0" value="0"></div>
+        <div><label>Prefijo FX</label><input id="cfg_fx_prefijo" class="input" placeholder="FX-"></div>
+      </div>
+      <div class="grid3">
+        <div><label>Folio FX actual</label><input id="cfg_fx_actual" class="input" type="number" min="0" value="0"></div>
+        <div><label>Prefijo NC</label><input id="cfg_nc_prefijo" class="input" placeholder="NC-"></div>
+        <div><label>Folio NC actual</label><input id="cfg_nc_actual" class="input" type="number" min="0" value="0"></div>
+      </div>
+      <div class="grid3">
+        <div><label>Prefijo ND</label><input id="cfg_nd_prefijo" class="input" placeholder="ND-"></div>
+        <div><label>Folio ND actual</label><input id="cfg_nd_actual" class="input" type="number" min="0" value="0"></div>
+        <div><label>Prefijo NV</label><input id="cfg_nv_prefijo" class="input" placeholder="NV-"></div>
+      </div>
+      <div class="grid3">
+        <div><label>Folio NV actual</label><input id="cfg_nv_actual" class="input" type="number" min="0" value="0"></div>
+        <div><label>Formato por defecto</label>
+          <select id="cfg_formato_recibo" class="select">
+            <option value="A4">A4</option>
+            <option value="TICKET80">Ticket 80 mm</option>
+            <option value="TICKET58">Ticket 58 mm</option>
+          </select>
+        </div>
+        <div></div>
+      </div>
+      <div class="grid3">
+        <div><label>Ancho ticket (mm)</label><input id="cfg_ticket_ancho_mm" class="input" type="number" min="40" value="80"></div>
+        <div><label>Pie de página</label><input id="cfg_pie_pagina" class="input" placeholder="¡Gracias por su compra!"></div>
+        <div><label>Correo</label><input id="cfg_correo" class="input" placeholder="ventas@..."></div>
+      </div>
+      <hr class="divider">
+      <div class="grid3">
+        <div><label>Modo de emisión</label>
+          <select id="cfg_emit_mode" class="select">
+            <option value="PDF">PDF</option>
+            <option value="PRINT">Imprimir (diálogo)</option>
+          </select>
+        </div>
+        <div><label>Copias (Imprimir)</label><input id="cfg_print_copies" class="input" type="number" min="1" value="1"></div>
+        <div><label>Margen superior ticket (mm)</label><input id="cfg_ticket_margin_top_mm" class="input" type="number" min="0" value="2"></div>
+      </div>
+      <div class="grid3">
+        <div><label>Margen inferior ticket (mm)</label><input id="cfg_ticket_margin_bottom_mm" class="input" type="number" min="0" value="2"></div>
+        <div></div><div></div>
+      </div>
+    </div>
+    <footer>
+      <button class="btn btn-danger" id="cfgSetFolio">Fijar folios</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost" data-close>Cancelar</button>
+      <button class="btn btn-primary" id="cfgSave">Guardar</button>
+    </footer>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toasts"></div>
+<script src="POS-NV/pos-app.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
